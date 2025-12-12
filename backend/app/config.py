@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     bria_api_base: str = "https://engine.prod.bria-api.com/v2"
 
     openai_api_key: str
+    openai_model: str = "gpt-4o-mini"
 
     model_config = SettingsConfigDict(
         env_file=".env",
