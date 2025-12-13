@@ -52,6 +52,30 @@ type StoryboardProject = {
 
 type Tab = "director" | "coverage" | "storyboards" | "playground";
 
+const STORAGE_KEY = "cinefibo-storyboards";
+const ACTIVE_PROJECT_KEY = "cinefibo-active-project";
+
+// --- Persistence helpers (localStorage) ---
+const saveProjectsToStorage = (projectsData: StoryboardProject[]) => {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projectsData));
+  } catch (err) {
+    console.warn("Failed to save projects:", err);
+  }
+};
+
+const loadProjectsFromStorage = (): StoryboardProject[] | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
 export default function Home() {
   const BACKEND_URL = "http://localhost:8000";
 
@@ -133,8 +157,7 @@ export default function Home() {
 
     if (res.status === 422 && lower.includes("content moderation")) {
       throw new Error(
-        "FIBO blocked this request due to its content moderation rules. " +
-          "Try making the scene less graphic/explicit or removing sensitive content."
+        "FIBO blocked this request due to its content moderation rules. Try adjusting the scene text to be less sensitive."
       );
     }
 
@@ -159,6 +182,25 @@ export default function Home() {
     setProjects((prev) => [...prev, project]);
     setActiveProjectId(project.id);
     return project;
+  };
+
+  const deleteProject = (projectId: string) => {
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+
+    // Clean up selection if we deleted the active/view project
+    setActiveProjectId((prev) => (prev === projectId ? null : prev));
+    setStoryboardsViewProjectId((prev) => (prev === projectId ? null : prev));
+
+    // Close overlay if it’s open
+    setSelectedStoryboardShot(null);
+
+    // Also clean localStorage active-project key
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(ACTIVE_PROJECT_KEY);
+      if (stored === projectId) {
+        window.localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      }
+    }
   };
 
   const addShotToProject = (shot: StoryboardShot, projectId?: string) => {
@@ -289,6 +331,36 @@ export default function Home() {
       </div>
     );
   };
+
+  // ========== Persistence Effects ==========
+
+  // Load stored projects + active project on first mount
+  useEffect(() => {
+    const storedProjects = loadProjectsFromStorage();
+    if (storedProjects && storedProjects.length > 0) {
+      setProjects(storedProjects);
+    }
+    if (typeof window !== "undefined") {
+      const storedActive = window.localStorage.getItem(ACTIVE_PROJECT_KEY);
+      if (storedActive) {
+        setActiveProjectId(storedActive);
+        setStoryboardsViewProjectId(storedActive);
+      }
+    }
+  }, []);
+
+  // Save projects whenever they change
+  useEffect(() => {
+    saveProjectsToStorage(projects);
+  }, [projects]);
+
+  // Persist active project id
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (activeProjectId) {
+      window.localStorage.setItem(ACTIVE_PROJECT_KEY, activeProjectId);
+    }
+  }, [activeProjectId]);
 
   // ========== PLAYGROUND HANDLERS ==========
 
@@ -486,14 +558,21 @@ export default function Home() {
     setShowCoverageJson(false);
   };
 
-  const handleAddCoverageShotToStoryboard = (shot: CoverageShotResult) => {
-    let targetProject = activeProject;
-    if (!targetProject) {
+  // FIX: allow explicit project id override (prevents "Add all" making multiple projects)
+  const handleAddCoverageShotToStoryboard = (
+    shot: CoverageShotResult,
+    projectIdOverride?: string
+  ) => {
+    const projectId = projectIdOverride || activeProjectId;
+
+    let finalProjectId = projectId;
+    if (!finalProjectId) {
       const defaultName =
         coverageProjectType.trim() ||
         coverageSceneText.trim().slice(0, 40) ||
         "New storyboard";
-      targetProject = createProject(defaultName);
+      const p = createProject(defaultName);
+      finalProjectId = p.id;
     }
 
     const id = `${shot.request_id}-${shot.plan.id}-${Date.now()}`;
@@ -510,22 +589,30 @@ export default function Home() {
       createdAt: new Date().toISOString(),
     };
 
-    addShotToProject(newShot, targetProject.id);
+    addShotToProject(newShot, finalProjectId);
   };
 
+  // FIX: add all shots to ONE project
   const handleAddAllCoverageToStoryboard = () => {
     if (!coverageShots || coverageShots.length === 0) return;
 
-    let targetProject = activeProject;
-    if (!targetProject) {
+    let targetProjectId = activeProjectId;
+
+    if (!targetProjectId) {
       const defaultName =
         coverageProjectType.trim() ||
         coverageSceneText.trim().slice(0, 40) ||
         "New storyboard";
-      targetProject = createProject(defaultName);
+      const p = createProject(defaultName);
+      targetProjectId = p.id;
+
+      setStoryboardsViewProjectId(p.id);
+      setActiveProjectId(p.id);
     }
 
-    coverageShots.forEach((shot) => handleAddCoverageShotToStoryboard(shot));
+    coverageShots.forEach((shot) =>
+      handleAddCoverageShotToStoryboard(shot, targetProjectId!)
+    );
   };
 
   // ========== STORYBOARDS TAB: open & tune shot ==========
@@ -786,7 +873,9 @@ export default function Home() {
                           className="w-full rounded-md bg-slate-950 border border-slate-700 px-2 py-1"
                         >
                           <option value="">Keep current</option>
-                          <option value="serene and cozy">Serene &amp; cozy</option>
+                          <option value="serene and cozy">
+                            Serene &amp; cozy
+                          </option>
                           <option value="dramatic and tense">
                             Dramatic &amp; tense
                           </option>
@@ -1263,7 +1352,7 @@ export default function Home() {
                         }`}
                         onClick={() => setStoryboardsViewProjectId(p.id)}
                       >
-                        <div className="flex justify-between items-center gap-1">
+                        <div className="flex justify-between items-center gap-2">
                           <input
                             value={p.name}
                             onChange={(e) =>
@@ -1275,11 +1364,26 @@ export default function Home() {
                                 )
                               )
                             }
+                            onClick={(e) => e.stopPropagation()}
                             className="bg-transparent flex-1 text-slate-100 border-b border-slate-600 focus:outline-none text-[11px] px-1 pb-[1px]"
                           />
+
                           <span className="text-[10px] text-slate-400">
                             {p.shots.length}
                           </span>
+
+                          <button
+                            className="text-[10px] px-2 py-1 rounded-full border border-red-600 text-red-300 hover:bg-red-600/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const ok = confirm(
+                                `Delete storyboard "${p.name}"? This cannot be undone.`
+                              );
+                              if (ok) deleteProject(p.id);
+                            }}
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     ))}
