@@ -324,3 +324,18 @@ The project explores how structured, controllable visual AI can:
 - and support real-world production workflows
 
 This submission represents a foundation that can evolve into a robust, production-grade system as visual AI continues to mature.
+
+## Contributors
+<table>
+	<tbody>
+		<tr>
+         <td align="center">
+             <a href="https://github.com/Purvav0511">
+                 <img src="https://avatars.githubusercontent.com/u/50676996?v=4" width="100;" alt="Purvav"/>
+                 <br />
+                 <sub>Purvav Punyani</sub>
+             </a>
+         </td>
+		</tr>
+	<tbody>
+</table>
