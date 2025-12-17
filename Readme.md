@@ -325,6 +325,17 @@ The project explores how structured, controllable visual AI can:
 
 This submission represents a foundation that can evolve into a robust, production-grade system as visual AI continues to mature.
 
+## Repository Status
+
+This repository represents a prototype built for the Bria FIBO Hackathon to demonstrate
+JSON-native visual control, agentic workflows, and production-oriented UX.
+
+The code is shared publicly for review and evaluation purposes.
+
+CineFIBO is an actively evolving project. Future iterations may replace underlying models,
+refactor orchestration logic, and transition to private repositories as the system
+moves toward commercial readiness.
+
 ## Contributors
 <table>
 	<tbody>
@@ -339,3 +350,6 @@ This submission represents a foundation that can evolve into a robust, productio
 		</tr>
 	<tbody>
 </table>
+
+© 2025. All rights reserved.
+This repository is shared for evaluation purposes and is not licensed for reuse.
